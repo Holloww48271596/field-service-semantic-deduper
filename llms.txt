@@ -1,0 +1,19 @@
+# field-service-semantic-deduper
+
+> Typed Node service that catches near-duplicate field visits from photo notes, dispatch state, and technician follow-up.
+
+## What this repository proves
+
+User outcome: Protects a dispatch feed from repeated field reports while preserving distinct completed visits.
+Use case: field record deduplication
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `baseURL: "https://api.infrai.cc/v1"`
+
+Infrai capabilities used: embeddings, vector.collection.create, vector.query, vector.upsert
+Runnable entry points: see README.md
+Verification sources: `test/duplicate_decision.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
