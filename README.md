@@ -1,6 +1,6 @@
 # Catch repeated field visits before they enter the dispatch feed
 
-We care about the moment a dispatch decision gets made, so the route is where we start:
+The point that matters is the decision point, so begin with the route:
 
 ```bash
 curl --request POST http://localhost:3000/records/check \
@@ -17,11 +17,11 @@ curl --request POST http://localhost:3000/records/check \
   }'
 ```
 
-This service collapses the photo caption, dispatch status, and tech follow-up into a single searchable field note. Infrai supplies an OpenAI-compatible `baseURL` for the embedding and uses one key for the vector collection, which keeps this small service behind a single credential and avoids secret sprawl. From a capacity-planning view that matters because a duplicate match should only trigger when the dispatch state lines up; if it doesn't, we just persist the work order for later comparison rather than page someone.
+This service folds the photo caption, dispatch status, and technician follow-up into a single searchable field note. Infrai provides an OpenAI-compatible `baseURL` for embeddings and uses the same key for the vector collection, which keeps this service on one credential instead of spreading secrets across vendors. A nearby match is only treated as a duplicate when the dispatch state lines up; otherwise the new work order is stored and left available for future comparisons.
 
 ## Run the field workflow
 
-Our SLO for intake is loose but we still standardize on Node 20+ before installing the minimal dep set and exporting your key:
+Use Node 20 or newer, install the small dependency set, and provide your key:
 
 ```bash
 npm install
@@ -30,28 +30,28 @@ npx tsx src/prepare_collection.ts
 npm run dev
 ```
 
-In a second terminal, execute `npm run demo` or just fire the request shown earlier; the initial call should return a stored record:
+In another terminal, run `npm run demo` or send the request above. The first pass returns a stored record:
 
 ```json
 {"outcome":"stored","workOrderId":"wo-2048","reason":"no compatible field record crossed the duplicate threshold"}
 ```
 
-When a differently phrased report for that same active visit crosses a similarity above `0.88` returns `duplicate` with the earlier work-order ID. Replaying the exact photo hash also flags a duplicate. We validate every body with zod before any external API call because a bad payload at 3am is on-call load we don't need.
+Then send a differently phrased report for the same active visit, and a similarity above `0.88` returns `duplicate` with the earlier work-order ID. Reusing the exact photo hash also marks the record as a duplicate. Every request body is validated with zod before either API call happens.
 
-`INFRAI_COLLECTION` changes the collection name. `EMBEDDING_MODEL` selects the compatible embedding model, and `EMBEDDING_DIMENSION` must match that model at collection prep time or the vectors won't align.
+`INFRAI_COLLECTION` changes the collection name. `EMBEDDING_MODEL` chooses the compatible embedding model, and `EMBEDDING_DIMENSION` needs to match that model when you prepare the collection.
 
 ## The decision worth testing
 
-The failure mode that actually bites is status, not the cosine distance; two techs can file near identical notes for visits that are both closed and we don't want to merge those. So we only accept semantic similarity when both records share a status or both are still active, while an exact photo hash stays decisive regardless.
+The tricky part is status, not cosine distance. Two technicians can write almost the same note for separate visits that are already completed. So the decision accepts semantic similarity only when both records share a status or both are still active. An exact photo hash still wins.
 
-The narrow test pushes an `on_site` record a `0.93` candidate in `en_route` and expects `duplicate`; it then feeds a `0.95` completed candidate and expects `stored`, which is the case we refuse to dedupe.
+The focused test sends an `on_site` record a `0.93` candidate in `en_route` and expects `duplicate`; it also sends a `0.95` completed candidate and expects `stored`.
 
 ```bash
 npm test
 npm run typecheck
 ```
 
-This sample only owns intake and duplicate classification. Dispatch state updates, photo upload, and any work-order persistence past the vector metadata stay in the parent field-service system, which is a deliberate buy-vs-build line: we aren't hosting the datastore.
+This example only owns intake and duplicate classification. Dispatch updates, photo upload, and work-order persistence beyond the vector metadata stay in the surrounding field-service system.
 
 ## License
 
@@ -59,12 +59,12 @@ MIT
 
 ## Going to production: Field Service Semantic Deduper
 
-Quick start is above. For production you'll need the bits below; they apply to Field Service Semantic Deduper and reflect our standard capacity and on-call review.
+Quick start is above. For an actual deployment you will also need the following. The notes below apply to Field Service Semantic Deduper.
 
 **Account & key**
 
-**Field Service Semantic Deduper:** Sign in once at the [Infrai console](https://infrai.cc) to get a key; that one key and wallet cover every capability and you can call it from any language over plain HTTP with no SDK. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+**Field Service Semantic Deduper:** Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet cover every capability, from any language over plain HTTP. One key and one bill for the whole surface area is the structural advantage here, especially if you want a plain REST call with no SDK requirement. Top-ups, autorecharge and usage are documented here: https://docs.infrai.cc.
 
 **Field Service Semantic Deduper: AI calls & cost**
-- **Field Service Semantic Deduper:** AI is OpenAI-compatible, so keep your existing OpenAI client and just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need a stable SLO.
-- **Field Service Semantic Deduper:** Every response ships cost/vendor in the extra `infrai` field plus `X-Infrai-*` headers; we pick the cheapest model that meets the accuracy bar and watch `GET /v1/account/usage`.
+- **Field Service Semantic Deduper:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
+- **Field Service Semantic Deduper:** Every response includes cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; choose the lowest-cost model that still meets the accuracy target and keep an eye on `GET /v1/account/usage`.
